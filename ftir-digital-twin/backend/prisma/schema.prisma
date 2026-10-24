@@ -1,0 +1,361 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+enum SourceType {
+  COMPANY
+  SYNTHETIC
+}
+
+enum ProcessingStatus {
+  UPLOADED
+  PREPROCESSED
+  CLASSIFIED
+  ATTACK_IDENTIFIED
+  SIMULATED
+  ANALYSED
+  REPORTED
+  FAILED
+}
+
+enum ClassificationLabel {
+  CYBERSECURITY
+  NON_CYBERSECURITY
+}
+
+enum AttackIdentificationStatus {
+  IDENTIFIED
+  UNCLASSIFIED
+}
+
+enum SimulationStatus {
+  QUEUED
+  RUNNING
+  COMPLETED
+  FAILED
+}
+
+enum SeverityLevel {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum RecommendationPriority {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum AiOperation {
+  CLASSIFICATION
+  ATTACK_IDENTIFICATION
+}
+
+enum AiRequestStatus {
+  SUCCESS
+  RATE_LIMITED
+  FAILED
+}
+
+enum AuditAction {
+  REPORT_UPLOADED
+  REPORT_PREPROCESSED
+  REPORT_CLASSIFIED
+  CLASSIFICATION_OVERRIDDEN
+  ATTACK_IDENTIFIED
+  ATTACK_UNCLASSIFIED
+  SIMULATION_STARTED
+  SIMULATION_COMPLETED
+  SIMULATION_FAILED
+  IMPACT_ANALYSED
+  RECOMMENDATIONS_GENERATED
+  FINAL_REPORT_GENERATED
+  FINAL_REPORT_EXPORTED
+}
+
+model Report {
+  id           String  @id @default(cuid())
+  ftirNumber   String  @unique
+  vehicleModel String?
+  mileage      Int?
+
+  rawRegistrationDate String?
+  registrationDate    DateTime?
+
+  rawFtirReportDate String?
+  ftirReportDate    DateTime?
+
+  rawIncidentDate String?
+  incidentDate    DateTime?
+
+  rawSubject     String  @db.Text
+  cleanedSubject String? @db.Text
+
+  sourceType       SourceType       @default(COMPANY)
+  processingStatus ProcessingStatus @default(UPLOADED)
+  processingError  String?          @db.Text
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  classification Classification?
+  attackProfile  AttackProfile?
+  finalReport    FinalReport?
+  auditLogs      AuditLog[]
+  aiUsageLogs    AiUsageLog[]
+
+  @@index([processingStatus])
+  @@index([vehicleModel])
+  @@index([sourceType])
+}
+
+model Classification {
+  id       String @id @default(cuid())
+  reportId String @unique
+
+  label           ClassificationLabel
+  confidenceScore Float?
+  reason          String              @db.Text
+  modelName       String?
+  rawAiResponse   Json?
+
+  promptVersion  String?
+  reviewRequired Boolean @default(false)
+  reviewReason   String? @db.Text
+
+  classifiedAt DateTime @default(now())
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  report    Report                   @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  overrides ClassificationOverride[]
+
+  @@index([label])
+  @@index([reviewRequired])
+}
+
+model ClassificationOverride {
+  id               String @id @default(cuid())
+  classificationId String
+
+  previousLabel  ClassificationLabel
+  correctedLabel ClassificationLabel
+  overrideReason String              @db.Text
+  overriddenBy   String?
+
+  overriddenAt DateTime @default(now())
+  createdAt    DateTime @default(now())
+
+  classification Classification @relation(fields: [classificationId], references: [id], onDelete: Cascade)
+
+  @@index([classificationId])
+}
+
+model AttackType {
+  id          String  @id @default(cuid())
+  code        String  @unique
+  name        String
+  description String? @db.Text
+  isActive    Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  attackProfiles AttackProfile[]
+}
+
+model AttackProfile {
+  id           String @id @default(cuid())
+  reportId     String @unique
+  attackTypeId String
+
+  rootCause            String                     @db.Text
+  attackDescription    String                     @db.Text
+  simulationParameters Json?
+  confidenceScore      Float?
+  identificationStatus AttackIdentificationStatus @default(IDENTIFIED)
+  rawAiResponse        Json?
+
+  identifiedAt DateTime @default(now())
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  report         Report          @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  attackType     AttackType      @relation(fields: [attackTypeId], references: [id])
+  simulationRuns SimulationRun[]
+
+  @@index([attackTypeId])
+  @@index([identificationStatus])
+}
+
+model SimulationRun {
+  id              String @id @default(cuid())
+  attackProfileId String
+  runNumber       Int    @default(1)
+
+  status      SimulationStatus @default(QUEUED)
+  startedAt   DateTime?
+  completedAt DateTime?
+  durationMs  Int?
+
+  configuration      Json?
+  simulationLogs     Json?
+  observationSummary String? @db.Text
+  errorMessage       String? @db.Text
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  attackProfile    AttackProfile     @relation(fields: [attackProfileId], references: [id], onDelete: Cascade)
+  ecuImpacts       EcuImpact[]
+  impactAssessment ImpactAssessment?
+
+  @@unique([attackProfileId, runNumber])
+  @@index([status])
+}
+
+model EcuImpact {
+  id              String @id @default(cuid())
+  simulationRunId String
+
+  ecuName            String
+  impactType         String
+  impactDescription  String   @db.Text
+  initialState       String?
+  finalState         String?
+  isDirectlyTargeted Boolean  @default(false)
+  detectedAt         DateTime @default(now())
+
+  simulationRun SimulationRun @relation(fields: [simulationRunId], references: [id], onDelete: Cascade)
+
+  @@index([simulationRunId])
+  @@index([ecuName])
+}
+
+model ImpactAssessment {
+  id              String @id @default(cuid())
+  simulationRunId String @unique
+
+  severityLevel   SeverityLevel
+  severityScore   Int
+  vehicleImpact   String        @db.Text
+  riskAnalysis    String        @db.Text
+  propagationPath Json?
+
+  analysedAt DateTime @default(now())
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  simulationRun   SimulationRun    @relation(fields: [simulationRunId], references: [id], onDelete: Cascade)
+  recommendations Recommendation[]
+  finalReport     FinalReport?
+}
+
+model Mitigation {
+  id          String  @id @default(cuid())
+  code        String  @unique
+  name        String
+  description String  @db.Text
+  category    String?
+  isActive    Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  recommendations Recommendation[]
+}
+
+model Recommendation {
+  id                 String  @id @default(cuid())
+  impactAssessmentId String
+  mitigationId       String?
+
+  title       String
+  description String                 @db.Text
+  priority    RecommendationPriority
+  rationale   String?                @db.Text
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  impactAssessment ImpactAssessment @relation(fields: [impactAssessmentId], references: [id], onDelete: Cascade)
+  mitigation       Mitigation?      @relation(fields: [mitigationId], references: [id])
+
+  @@index([impactAssessmentId])
+  @@index([mitigationId])
+}
+
+model FinalReport {
+  id                 String @id @default(cuid())
+  reportId           String @unique
+  impactAssessmentId String @unique
+
+  content     Json?
+  pdfFileName String?
+  pdfFilePath String?
+  generatedAt DateTime  @default(now())
+  exportedAt  DateTime?
+
+  report           Report           @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  impactAssessment ImpactAssessment @relation(fields: [impactAssessmentId], references: [id], onDelete: Cascade)
+}
+
+model AuditLog {
+  id       String  @id @default(cuid())
+  reportId String?
+
+  action      AuditAction
+  entityType  String
+  entityId    String?
+  details     Json?
+  performedBy String?
+
+  createdAt DateTime @default(now())
+
+  report Report? @relation(fields: [reportId], references: [id], onDelete: SetNull)
+
+  @@index([reportId])
+  @@index([action])
+  @@index([createdAt])
+}
+
+model AiUsageLog {
+  id       String  @id @default(cuid())
+  batchId  String?
+  reportId String?
+
+  provider      String      @default("GEMINI")
+  modelName     String
+  operation     AiOperation
+  attemptNumber Int         @default(1)
+  reportCount   Int         @default(1)
+
+  inputTokens    Int?
+  outputTokens   Int?
+  totalTokens    Int?
+  responseTimeMs Int?
+
+  status       AiRequestStatus
+  errorCode    String?
+  errorMessage String?         @db.Text
+
+  createdAt DateTime @default(now())
+
+  report Report? @relation(fields: [reportId], references: [id], onDelete: SetNull)
+
+  @@index([batchId])
+  @@index([reportId])
+  @@index([modelName])
+  @@index([operation])
+  @@index([status])
+  @@index([createdAt])
+}

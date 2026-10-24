@@ -1,0 +1,89 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Control Room palette. Values are "R G B" so Tailwind can apply opacity. */
+:root {
+  --page: 245 247 250;
+  --card: 255 255 255;
+  --raised: 241 244 248;
+  --line: 226 232 240;
+  --divider: 236 240 245;
+  --fg: 15 23 42;
+  --muted: 100 116 139;
+  --faint: 148 163 184;
+  --accent: 8 145 178;
+  --accent-soft: 224 247 252;
+  --accent-ink: 14 116 144;
+  --accent-on: 255 255 255;
+  --indigo: 79 70 229;
+  --indigo-soft: 238 240 255;
+  --indigo-ink: 67 56 202;
+  --safe: 22 163 74;
+  --safe-soft: 220 252 231;
+  --danger: 220 38 38;
+  --danger-soft: 254 226 226;
+  --sev-low: 22 163 74;
+  --sev-medium: 202 138 4;
+  --sev-high: 234 88 12;
+  --sev-critical: 220 38 38;
+  color-scheme: light;
+}
+
+.dark {
+  --page: 11 18 32;
+  --card: 19 28 46;
+  --raised: 26 36 56;
+  --line: 31 42 64;
+  --divider: 26 36 56;
+  --fg: 230 237 247;
+  --muted: 139 152 174;
+  --faint: 91 103 128;
+  --accent: 34 211 238;
+  --accent-soft: 14 58 71;
+  --accent-ink: 165 243 252;
+  --accent-on: 6 42 51;
+  --indigo: 99 102 241;
+  --indigo-soft: 35 38 79;
+  --indigo-ink: 199 210 254;
+  --safe: 74 222 128;
+  --safe-soft: 15 46 29;
+  --danger: 248 113 113;
+  --danger-soft: 59 18 25;
+  --sev-low: 74 222 128;
+  --sev-medium: 250 204 21;
+  --sev-high: 251 146 60;
+  --sev-critical: 248 113 113;
+  color-scheme: dark;
+}
+
+@layer base {
+  html, body, #root { height: 100%; }
+  body {
+    @apply bg-page text-fg font-sans antialiased;
+    font-feature-settings: "cv11", "ss01";
+  }
+  ::selection { background: rgb(var(--accent) / 0.25); }
+  * { scrollbar-width: thin; scrollbar-color: rgb(var(--line)) transparent; }
+  :focus-visible { outline: 2px solid rgb(var(--accent)); outline-offset: 2px; border-radius: 6px; }
+}
+
+@layer components {
+  .card { @apply bg-card border border-line rounded-card; }
+  .card-pad { @apply p-4; }
+  .label { @apply text-[11px] uppercase tracking-[0.08em] text-muted; }
+  .num { @apply tracking-tight tabular-nums; }
+  .ftir-id { @apply font-mono text-accent; }
+  .skeleton { @apply bg-raised rounded-lg animate-pulse; }
+  .table-row { @apply border-b border-divider last:border-0 transition-colors; }
+}
+
+@keyframes flow { to { stroke-dashoffset: -24; } }
+.bus-flow { stroke-dasharray: 6 6; animation: flow 0.8s linear infinite; }
+
+@media print {
+  .no-print { display: none !important; }
+  body { background: #fff !important; color: #000 !important; }
+  .print-area { padding: 0 !important; }
+  .card { border-color: #ddd !important; background: #fff !important; }
+}
